@@ -1,17 +1,9 @@
-# Programa d'anàlisi de longitud de clau (Vigenère-like)
-# S'executa sobre el text proporcionat a la conversa. Mostra:
-# 1) Índex de coincidència (IC)
-# 2) Estimació de Friedman de la longitud de la clau
-# 3) Resultats de Kasiski (repeticions i factors de distàncies)
-# 4) IC mitjà per longitud de clau candidata (1..20)
-# 5) Suggeriments ordenats de longituds probables
-
-from collections import Counter, defaultdict
 import re
+from collections import Counter
 import math
-import pandas as pd
 
-cipher_text = """
+# Text xifrat
+ciphertext = """
 tl fmmcse dilwhkb mg qgiibhocaeqlw iafjx qdnxonh rof i xlpmxv ws zalqlyx o izhjp dx
 stgxsdq xg jn fmmcse imk oiavik sas qqyfptzml rt snjlhxtnkbc eoeqtzuaummwra vwf sa
 xbnkoigx lx jxgxvxft
@@ -36,125 +28,95 @@ tt qaan mko fuxamwd dx kxfrak lbttrxvmg eakinzts jcx sh rxxxhxslqg w irhjtf tl l
 vcbu wqowhok xxf sajcxgia figsga mzhppr nv fiatbxes erhxxf p lt thbvimcw rt lt keoj
 lt thbvimcw rt lt keoj sxzt ofuxam bdmuzx c plzcg tpcmwk dgifmk rpqnmlh
 jn vwi rtsvwusgtt tt zdnzqmis dx tt qaan ifp fux ml jp xbnkog ee lhqjmxvm bdmxa voa
-dbdbrxr xt msmt xv uzdcl lx zp mtbxwma fqwo fux tt zdnzqmis dx tt qaan q tdaivik samxbhrt elbtrxsmqv hgawqvwdntt wsa xbnkoigx lx qtstz
+dbdbrxr xt msmt xv uzdcl lx zp mtbxwma fqwo fux tt zdnzqmis dx tt qaan q tdaivik sa
+mxbhrt elbtrxsmqv hgawqvwdntt wsa xbnkoigx lx qtstz a
 """
 
-# Normalització: mantenim només lletres A-Z en majúscules
-clean = re.sub(r'[^A-Za-z]', '', cipher_text).upper()
+#Netejar el text dels espais i números
+ciphertext = re.sub(r'[^a-zA-Z]', '', ciphertext).lower()
 
-def index_of_coincidence(text):
-    N = len(text)
-    if N <= 1:
-        return 0.0
-    freqs = Counter(text)
-    s = sum(v*(v-1) for v in freqs.values())
-    return s / (N*(N-1))
+# --- FREQÜÈNCIES CATALÀ ---
+spanish_freq = {
+    'a':12.53,'b':1.49,'c':4.68,'d':5.86,'e':13.68,'f':0.52,'g':1.01,
+    'h':0.70,'i':6.25,'j':0.44,'k':0.11,'l':8.37,'m':3.15,'n':7.01,
+    'o':8.68,'p':2.51,'q':0.88,'r':6.87,'s':7.88,'t':4.63,'u':3.93,
+    'v':0.90,'w':0.04,'x':0.22,'y':0.90,'z':0.47
+}
+# Arrodonir les freqüències perquè si les sumem donin 100.
+# Serveix per poder poder utilitzar en text de diferents tamanys
+total = sum(spanish_freq.values())
+spanish_freq = {k: v/total for k,v in spanish_freq.items()}
 
-def friedman_estimate(text):
-    N = len(text)
-    ic = index_of_coincidence(text)
-    # constants for English reference; formula may vary slightly
-    # Using standard Friedman formula:
-    # K ≈ (0.027 * N) / ((N - 1) * IC - 0.038 * N + 0.065)
-    denom = (N - 1) * ic - 0.038 * N + 0.065
-    if denom == 0:
-        return None, ic
-    K = (0.027 * N) / denom
-    return K, ic
+# Mirem la concentració de les lletres repetides
+# El nostre objectiu es 0,07
+def index_coincidence(text):
+    N = len(text)#Llargada text
+    freqs = Counter(text)#Cops que es repeteix una lletra
+    #f es la freqüència de cada lletra i apliquem un sumatori fi(fi-1)/N(N-1)
+    return sum(f*(f-1) for f in freqs.values()) / (N*(N-1)) if N > 1 else 0
 
-def kasiski_examination(text, min_len=3, max_len=6):
-    repeats = defaultdict(list)
-    text_len = len(text)
-    for L in range(min_len, max_len+1):
-        seen = {}
-        for i in range(0, text_len - L + 1):
-            chunk = text[i:i+L]
-            if chunk in seen:
-                prev = seen[chunk]
-                repeats[chunk].append(i - prev)
-                # update prev to first occurrence to gather multiple distances
-                # keep the original first index to collect distances from it
-            else:
-                seen[chunk] = i
-    # collect factors of distances
-    factor_counts = Counter()
-    for chunk, dists in repeats.items():
-        for d in dists:
-            # factorize d (consider factors up to 30)
-            for f in range(2, 31):
-                if d % f == 0:
-                    factor_counts[f] += 1
-    return repeats, factor_counts
-
-def average_ic_by_keylength(text, max_key=20):
-    results = []
-    for keylen in range(1, max_key+1):
-        ics = []
-        for offset in range(keylen):
-            subseq = text[offset::keylen]
-            ics.append(index_of_coincidence(subseq))
-        avg_ic = sum(ics) / len(ics)
-        results.append((keylen, avg_ic))
+#Funció per saber la llargada de la clau
+#Separa el text i el separa en K textos.
+#Calcula l'índex de coincidéncia del subtext i fa la mitjana
+#retorna la k més llarga
+def kasiski_guess_keylen(text, max_len=20):
+    results = {}
+    for key_len in range(1, max_len+1):
+        ic_values = []
+        for i in range(key_len):
+            subtext = text[i::key_len]
+            ic_values.append(index_coincidence(subtext))
+        results[key_len] = sum(ic_values) / len(ic_values)
     return results
+#Compara freqüències amb els subtextos
+#Comota quantes vegades surt una lletra i ho compara amb el que serie esperavle
+#Fórmula (observat - espetat)²/esperat
+def chi_squared_stat(subtext, shift):
+    # Desplaça el subtext
+    shifted = ''.join(chr((ord(c)-ord('a')-shift) % 26 + ord('a')) for c in subtext)
+    freqs = Counter(shifted)
+    N = len(shifted)
+    chi2 = 0 
+    for ch in spanish_freq:
+        observed = freqs.get(ch, 0)
+        expected = spanish_freq[ch] * N
+        chi2 += (observed-expected)**2 / expected if expected>0 else 0
+    return chi2
+#Troba la clau lletra per lletra.
+#Divideix el text en subalfabets i prova els 26 desplaçaments
+#tria el més petit 
+def guess_key_spanish(text, key_len):
+    key = ""
+    for i in range(key_len):
+        subtext = text[i::key_len]
+        best_shift, best_chi2 = None, 1e9
+        for shift in range(26):
+            chi2 = chi_squared_stat(subtext, shift)
+            if chi2 < best_chi2:
+                best_chi2, best_shift = chi2, shift
+        key += chr(ord('a') + best_shift)
+    return key
+#Desencripta
+def vigenere_decrypt(text, key):
+    plain = []
+    key = key.lower()
+    klen = len(key)
+    for i, ch in enumerate(text):
+        if ch.isalpha():
+            shift = ord(key[i % klen]) - ord('a')
+            p = (ord(ch) - ord('a') - shift) % 26
+            plain.append(chr(ord('a') + p))
+    return ''.join(plain)
 
-# Run analyses
-friedman_K, ic = friedman_estimate(clean)
-repeats, factor_counts = kasiski_examination(clean, min_len=3, max_len=6)
-avg_ics = average_ic_by_keylength(clean, max_key=20)
 
-# Present findings
-print("Text net (només lletres) longitud:", len(clean))
-print("Índex de coincidència (IC): {:.6f}".format(ic))
-if friedman_K:
-    print("Estimació de Friedman (longitud de clau aproximada): {:.2f}".format(friedman_K))
-else:
-    print("Estimació de Friedman: no aplicable")
+ic_results = kasiski_guess_keylen(ciphertext, 20)
+key_len = max(ic_results, key=ic_results.get)
 
-print("\nKasiski: mostres repetides trobades (chunk -> nombres de distàncies):")
-# Show up to 12 repeated chunks (if any)
-count = 0
-for chunk, dists in sorted(repeats.items(), key=lambda kv: (-len(kv[1]), kv[0])):
-    print(f"  {chunk} -> distàncies: {dists}")
-    count += 1
-    if count >= 12:
-        break
-if not repeats:
-    print("  Cap repetició de longitud 3..6 trobada.")
+print("Longitud de clau probable:", key_len)
 
-print("\nFactors de les distàncies (freqüències) — suggeriments de claus (factors més comuns):")
-for f, c in factor_counts.most_common(10):
-    print(f"  Factor {f}: {c} vegades")
+key = guess_key_spanish(ciphertext, key_len)
+print("Clau refinada:", key)
 
-# Dataframe per mostrar IC mitjana per longitud candidata
-df = pd.DataFrame(avg_ics, columns=["key_length", "avg_IC"]).set_index("key_length")
-print(df.to_string(float_format="{:.6f}".format))
-
-
-# Sorted suggestions by avg_IC (descending)
-sorted_by_ic = sorted(avg_ics, key=lambda x: -x[1])[:8]
-print("\nLongituds candidates ordenades per IC mitja (més probable primer):")
-for k, a in sorted_by_ic:
-    print(f"  {k}: avg IC = {a:.6f}")
-
-# Heurística final: combinar Kasiski factors and Friedman estimate and IC peaks
-candidates = [k for k,_ in sorted_by_ic]
-kasiski_candidates = [f for f,_ in factor_counts.most_common(6)]
-print("\nSuggerència final combinada (heurística):")
-combined = []
-# add kasiski candidates first if present and <=20
-for f in kasiski_candidates:
-    if f <= 20 and f not in combined:
-        combined.append(f)
-# then add top IC candidates
-for k in candidates:
-    if k not in combined:
-        combined.append(k)
-# then include rounded friedman if in range
-kf = None
-if friedman_K:
-    kf = round(friedman_K)
-    if 1 <= kf <= 20 and kf not in combined:
-        combined.insert(0, kf)
-
-print("  Probables longituds de clau (ordre suggerit):", combined[:10])
-
+plaintext = vigenere_decrypt(ciphertext, key)
+print("\nText desxifrat:")
+print(plaintext)

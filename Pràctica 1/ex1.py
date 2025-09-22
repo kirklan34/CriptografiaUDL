@@ -172,13 +172,14 @@ MP WZDE TY ETXP, WTVP EPLCD TY CLTY. ETXP EZ OTP."""
     print("MILLORS CANDIDATS (ordenats per similitud amb l'anglès):")
     print("-" * 60)
     for i, (desplaçament, chi_val, text_desxifrat) in enumerate(resultats_analisi[:5]):
-        print(f"{i+1}. Desplaçament {desplaçament:2d} (χ² = {chi_val:8.2f}):")
+        print(f"{i+1}. Clau {desplaçament:2d} (χ² = {chi_val:8.2f}):")
         # Mostrar només les primeres línies per estalviar espai
         primera_linia = text_desxifrat.split('\n')[0]
         print(f"   {primera_linia}...")
         print()
     
     print(f"MILLOR CANDIDAT: Desplaçament {millor_desplaçament}")
+    print(f"CLAU DE DESXIFRAT: {millor_desplaçament}")
     print("=" * 50)
     millor_text = desxifrat_cesar(text_xifrat, -millor_desplaçament)
     print(millor_text)
@@ -189,7 +190,7 @@ MP WZDE TY ETXP, WTVP EPLCD TY CLTY. ETXP EZ OTP."""
     
     for i in range(1, 26):
         desxifrat = desxifrat_cesar(text_xifrat, -i)
-        print(f"Desplaçament {i:2d}: {desxifrat}")
+        print(f"Clau {i:2d}: {desxifrat}")
 
 if __name__ == "__main__":
     main()

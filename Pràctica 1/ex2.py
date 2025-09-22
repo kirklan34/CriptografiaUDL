@@ -1,18 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3n/env python3
 """
 Exercici 2 — Comparació substitució simple i símbols homòfons.
 
-Genera un xifrat per substitució simple i un xifrat homòfon a partir del
-text donat, calcula les freqüències dels símbols de cada xifrat i mostra
-una breu comparació estadística (entropia, desviació estàndard, top-10).
-
-Sortides:
- - ex2_simple.txt
- - ex2_homophonic.txt
- - ex2_freq_simple.csv
- - ex2_freq_homophonic.csv
-
-L'script és determinista (seed = 42) per reproducibilitat.
+Compareu les freqüències d’aparició dels caràcters d’un i altre mètode.
 """
 from __future__ import annotations
 
